@@ -44,7 +44,7 @@ input[type=file]{display:none}
 <div class="pod">
   <div class="screen">
     <div class="bar"><span>Now Playing</span>
-      <span class="r"><button id="shuf" title="Shuffle">SHUF</button><button id="rep" title="Repeat">REP</button><label style="cursor:pointer;color:var(--scrmut)" title="Add songs">＋<input type="file" id="file" accept="audio/*" multiple></label></span></div>
+      <span class="r"><button id="shuf" title="Shuffle">SHUF</button><button id="rep" title="Repeat">REP</button><button id="del" title="Remove current song">✕</button><label style="cursor:pointer;color:var(--scrmut)" title="Add songs">＋<input type="file" id="file" accept="audio/*" multiple></label></span></div>
     <div class="view np" id="np">
       <div class="t" id="title">No music</div><div class="s" id="sub">Press ＋ to add songs</div>
       <div class="prog"><i id="pf"></i></div>
@@ -64,11 +64,17 @@ input[type=file]{display:none}
 const $=id=>document.getElementById(id);
 const a=new Audio();a.volume=.8;
 let tracks=[],i=-1,shuf=false,rep=false;
+ 
+// persistent storage (IndexedDB) so songs survive reloads
+const openDB=()=>new Promise((res,rej)=>{const r=indexedDB.open("ipod",1);r.onupgradeneeded=()=>r.result.createObjectStore("t",{keyPath:"id",autoIncrement:true});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const dbDo=async(mode,fn)=>{try{const d=await openDB();return await new Promise(res=>{const q=fn(d.transaction("t",mode).objectStore("t"));q.onsuccess=()=>res(q.result);q.onerror=()=>res(null)})}catch(_){return null}};
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(_){}
 const fmt=s=>isFinite(s)?Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0"):"0:00";
 const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 function load(n,go=true){
   if(!tracks.length)return;
   i=(n+tracks.length)%tracks.length;
+  try{localStorage.setItem('ipod_i',i)}catch(_){}
   a.src=tracks[i].url;
   $("title").textContent=tracks[i].name;$("sub").textContent=`${i+1} of ${tracks.length}`;
   if(go)a.play().catch(()=>{});
@@ -76,12 +82,31 @@ function load(n,go=true){
 function nextIdx(){if(shuf&&tracks.length>1){let r;do{r=Math.floor(Math.random()*tracks.length)}while(r===i);return r}return i+1}
 function setVol(v){a.volume=Math.max(0,Math.min(1,v));$("vf").style.width=a.volume*100+"%"}
 function toggle(){if(i<0)return;a.paused?a.play().catch(()=>{}):a.pause()}
-$("file").onchange=e=>{
+$("file").onchange=async e=>{
   const first=tracks.length;
-  [...e.target.files].forEach(f=>tracks.push({name:f.name.replace(/\.[^.]+$/,""),url:URL.createObjectURL(f)}));
+  for(const f of [...e.target.files]){
+    const name=f.name.replace(/\.[^.]+$/,"");
+    const id=await dbDo("readwrite",st=>st.add({name,blob:f}));
+    tracks.push({id,name,url:URL.createObjectURL(f)});
+  }
   e.target.value="";
-  if(i<0)load(first);
+  if(i<0)load(first);else $("sub").textContent=`${i+1} of ${tracks.length}`;
 };
+$("del").onclick=async()=>{
+  if(i<0)return;
+  const t=tracks[i];a.pause();
+  if(t.id!=null)await dbDo("readwrite",st=>st.delete(t.id));
+  URL.revokeObjectURL(t.url);tracks.splice(i,1);
+  if(tracks.length)load(Math.min(i,tracks.length-1),false);
+  else{i=-1;a.removeAttribute("src");$("title").textContent="No music";$("sub").textContent="Press ＋ to add songs";$("cur").textContent="0:00";$("dur").textContent="-0:00";$("pf").style.width="0"}
+};
+(async()=>{
+  const rows=await dbDo("readonly",st=>st.getAll());
+  if(!rows||!rows.length)return;
+  rows.forEach(r=>tracks.push({id:r.id,name:r.name,url:URL.createObjectURL(r.blob)}));
+  let n=0;try{n=+localStorage.getItem("ipod_i")||0}catch(_){}
+  load(n<tracks.length?n:0,false);
+})();
 $("ok").onclick=toggle;
 $("play").onclick=toggle;
 $("prev").onclick=()=>load(i-1);
