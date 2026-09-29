@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Music Player</title>
+<style>
+:root{--bg:#fff;--body1:#fbfbfb;--body2:#e4e4e6;--scr:#f2f4f0;--scrfg:#222;--scrmut:#777;--sel:#222;--selfg:#f2f4f0;
+--wheel:#d9d9dc;--wheelfg:#8a8a8e;--btn:#f4f4f6;--edge:rgba(0,0,0,.12);
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#191919;--body1:#2b2b2d;--body2:#1a1a1c;--scr:#d5dccf;--wheel:#0f0f10;--wheelfg:#8a8a8e;--btn:#1f1f21;--edge:rgba(255,255,255,.1)}}
+:root[data-theme="dark"]{--bg:#191919;--body1:#2b2b2d;--body2:#1a1a1c;--scr:#d5dccf;--wheel:#0f0f10;--wheelfg:#8a8a8e;--btn:#1f1f21;--edge:rgba(255,255,255,.1)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);font:13px/1.3 -apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif;padding:12px;display:flex;justify-content:center}
+.pod{width:100%;max-width:280px;background:linear-gradient(160deg,var(--body1),var(--body2));border-radius:22px;padding:18px 18px 26px;box-shadow:0 0 0 1px var(--edge),0 6px 20px rgba(0,0,0,.12)}
+.screen{background:var(--scr);color:var(--scrfg);border-radius:6px;height:150px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.35),inset 0 2px 6px rgba(0,0,0,.15);display:flex;flex-direction:column;overflow:hidden}
+.bar{display:flex;justify-content:space-between;align-items:center;padding:3px 8px;border-bottom:1px solid rgba(0,0,0,.25);font-size:11px;font-weight:600}
+.bar button{font-size:11px;padding:0 3px;color:var(--scrmut);background:none;border:0;cursor:pointer;font-weight:600}
+.bar button.on{color:var(--scrfg);text-decoration:underline}
+.bar .r{display:flex;gap:4px}
+.view{flex:1;min-height:0;display:flex;flex-direction:column}
+.np{padding:12px 12px 10px;text-align:center;justify-content:center}
+.np .t{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np .s{color:var(--scrmut);font-size:11px;margin:2px 0 14px}
+.prog{height:8px;border:1px solid var(--scrfg);border-radius:1px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--scrfg)}
+.times{display:flex;justify-content:space-between;font-size:10px;margin-top:3px;font-variant-numeric:tabular-nums}
+.vol{margin-top:10px;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--scrmut)}
+.vol .prog{flex:1;height:5px}
+.menu{overflow-y:auto}
+.row{padding:4px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;display:flex;justify-content:space-between;gap:6px}
+.row.sel{background:var(--sel);color:var(--selfg)}
+.row.cur:after{content:"♪"}
+.empty{padding:14px 10px;color:var(--scrmut);text-align:center;margin:auto}
+.wheel{position:relative;width:200px;height:200px;max-width:100%;aspect-ratio:1;margin:22px auto 0;border-radius:50%;background:var(--wheel);box-shadow:inset 0 0 0 1px var(--edge);touch-action:none;user-select:none;cursor:grab}
+.wheel .k{position:absolute;color:var(--wheelfg);font-size:11px;font-weight:700;letter-spacing:.5px;background:none;border:0;cursor:pointer;padding:8px}
+.k.m{top:8px;left:50%;transform:translateX(-50%)}
+.k.b{bottom:8px;left:50%;transform:translateX(-50%)}
+.k.l{left:8px;top:50%;transform:translateY(-50%)}
+.k.rr{right:8px;top:50%;transform:translateY(-50%)}
+.k:hover{color:var(--scrfg)}
+.center{position:absolute;inset:34%;border-radius:50%;background:var(--btn);border:0;box-shadow:0 0 0 1px var(--edge);cursor:pointer}
+.center:active{filter:brightness(.92)}
+input[type=file]{display:none}
+</style>
+</head>
+<body>
+<div class="pod">
+  <div class="screen">
+    <div class="bar"><span id="hd">Now Playing</span>
+      <span class="r"><button id="shuf" title="Shuffle">SHUF</button><button id="rep" title="Repeat">REP</button><label style="cursor:pointer;color:var(--scrmut)" title="Add songs">＋<input type="file" id="file" accept="audio/*" multiple></label></span></div>
+    <div class="view np" id="np">
+      <div class="t" id="title">No music</div><div class="s" id="sub">Press ＋ to add songs</div>
+      <div class="prog"><i id="pf"></i></div>
+      <div class="times"><span id="cur">0:00</span><span id="dur">-0:00</span></div>
+      <div class="vol">🔈<div class="prog"><i id="vf" style="width:80%"></i></div></div>
+    </div>
+    <div class="view menu" id="menu" hidden></div>
+  </div>
+  <div class="wheel" id="wheel">
+    <button class="k m" id="kmenu">MENU</button>
+    <button class="k l" id="prev">⏮</button>
+    <button class="k rr" id="next">⏭</button>
+    <button class="k b" id="play">▶ II</button>
+    <button class="center" id="ok" aria-label="Select"></button>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const a=new Audio();a.volume=.8;
+let tracks=[],i=-1,sel=0,shuf=false,rep=false,menu=false;
+const fmt=s=>isFinite(s)?Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0"):"0:00";
+const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+function view(){
+  $("np").hidden=menu;$("menu").hidden=!menu;$("hd").textContent=menu?"Music":"Now Playing";
+  if(!menu)return;
+  $("menu").innerHTML=tracks.length?tracks.map((t,n)=>`<div class="row ${n===sel?"sel":""} ${n===i?"cur":""}" data-n="${n}"><span>${esc(t.name)}</span></div>`).join(""):'<div class="empty">No songs.<br>Press ＋ to add.</div>';
+  const s=$("menu").querySelector(".sel");if(s)s.scrollIntoView({block:"nearest"});
+}
+function load(n,go=true){
+  if(!tracks.length)return;
+  i=(n+tracks.length)%tracks.length;sel=i;
+  a.src=tracks[i].url;
+  $("title").textContent=tracks[i].name;$("sub").textContent=`${i+1} of ${tracks.length}`;
+  view();if(go)a.play().catch(()=>{});
+}
+function nextIdx(){if(shuf&&tracks.length>1){let r;do{r=Math.floor(Math.random()*tracks.length)}while(r===i);return r}return i+1}
+function setVol(v){a.volume=Math.max(0,Math.min(1,v));$("vf").style.width=a.volume*100+"%"}
+function toggle(){if(i<0)return;a.paused?a.play().catch(()=>{}):a.pause()}
+$("file").onchange=e=>{
+  const first=tracks.length;
+  [...e.target.files].forEach(f=>tracks.push({name:f.name.replace(/\.[^.]+$/,""),url:URL.createObjectURL(f)}));
+  e.target.value="";
+  if(i<0)load(first);else view();
+};
+$("menu").onclick=e=>{const r=e.target.closest(".row");if(r){load(+r.dataset.n);menu=false;view()}};
+$("kmenu").onclick=()=>{menu=!menu;view()};
+$("ok").onclick=()=>{if(menu&&tracks.length){load(sel);menu=false;view()}else toggle()};
+$("play").onclick=toggle;
+$("prev").onclick=()=>{if(a.currentTime>3)a.currentTime=0;else load(i-1)};
+$("next").onclick=()=>load(nextIdx());
+$("shuf").onclick=e=>{shuf=!shuf;e.currentTarget.classList.toggle("on",shuf)};
+$("rep").onclick=e=>{rep=!rep;e.currentTarget.classList.toggle("on",rep)};
+// click-wheel: drag around the ring (or scroll) to change volume / move selection
+const w=$("wheel");let last=null,acc=0;
+const step=d=>{if(menu){if(tracks.length){sel=(sel+d+tracks.length)%tracks.length;view()}}else setVol(a.volume+d*.05)};
+w.addEventListener("pointerdown",e=>{if(e.target.closest("button"))return;w.setPointerCapture(e.pointerId);const r=w.getBoundingClientRect();last=Math.atan2(e.clientY-r.top-r.height/2,e.clientX-r.left-r.width/2)});
+w.addEventListener("pointermove",e=>{if(last===null)return;const r=w.getBoundingClientRect();const an=Math.atan2(e.clientY-r.top-r.height/2,e.clientX-r.left-r.width/2);let d=an-last;if(d>Math.PI)d-=2*Math.PI;if(d<-Math.PI)d+=2*Math.PI;last=an;acc+=d;while(Math.abs(acc)>.35){step(acc>0?1:-1);acc+=acc>0?-.35:.35}});
+w.addEventListener("pointerup",()=>{last=null;acc=0});
+w.addEventListener("wheel",e=>{e.preventDefault();step(e.deltaY>0?1:-1)},{passive:false});
+a.onplay=()=>{};
+a.ontimeupdate=()=>{$("cur").textContent=fmt(a.currentTime);if(a.duration){$("pf").style.width=a.currentTime/a.duration*100+"%";$("dur").textContent="-"+fmt(a.duration-a.currentTime)}};
+a.onended=()=>{if(rep&&!shuf)load(i);else if(shuf||i<tracks.length-1||rep)load(nextIdx())};
+view();
+</script>
+</body>
+</html>
